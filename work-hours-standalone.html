@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ore Lavorate — Calendario</title>
+  <style>
+* { box-sizing: border-box; }
+:root {
+  --bg: #0b0d10;
+  --panel: #12161b;
+  --border: #2a2f36;
+  --text: #e6e9ef;
+  --muted: #9aa3af;
+  --accent: #4f9cff;
+  --accent-2: #22c55e;
+  --danger: #ef4444;
+  --today: #f59e0b;
+  --free: #38bdf8;
+  --shadow: rgba(0,0,0,.3);
+}
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: linear-gradient(180deg, #0b0d10 0%, #0e1116 100%);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+.app-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(18,22,27,.6);
+  backdrop-filter: blur(6px);
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 24px; justify-content: space-between;
+}
+.app-header h1 { margin: 0; font-size: 20px; letter-spacing: .2px; }
+.tabs { display: flex; gap: 8px; }
+.tab-button {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  padding: 8px 12px; border-radius: 10px; cursor: pointer;
+}
+.tab-button.active { border-color: var(--accent); outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+main { width: min(1200px, 95vw); margin: 20px auto; flex: 1; }
+.tab { display: none; }
+.tab.active { display: block; }
+
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.month-nav { display: flex; align-items: center; gap: 8px; }
+#monthLabel { min-width: 220px; text-align: center; font-weight: 600; }
+button {
+  background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 10px;
+  cursor: pointer; box-shadow: 0 2px 8px var(--shadow);
+}
+button.secondary { background: #2e3440; }
+button.danger { background: var(--danger); }
+button:disabled { opacity: .6; cursor: not-allowed; }
+.legend { color: var(--muted); display: flex; align-items: center; gap: 14px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 99px; background: var(--border); margin-right: 4px; }
+.dot.worked { background: var(--accent-2); }
+.dot.today { background: var(--today); }
+
+.calendar { border: 1px solid var(--border); border-radius: 14px; overflow: clip; background: var(--panel); }
+.weekdays, .grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.weekdays { background: #0e1319; border-bottom: 1px solid var(--border); }
+.weekdays > div { padding: 10px; text-align: center; color: var(--muted); font-weight: 600; }
+
+.grid .cell {
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  min-height: 110px; padding: 8px; position: relative; overflow: hidden;
+  cursor: pointer;
+}
+.grid .cell:nth-child(7n) { border-right: none; }
+.grid .row-end { border-bottom: none; }
+
+.cell .date {
+  position: absolute; top: 8px; right: 8px; font-size: 12px; color: var(--muted);
+}
+.cell .content { margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+.cell .badge { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+.badge .row-times { display: flex; flex-direction: column; gap: 2px; }
+.badge .row-times .time { display: inline-block; }
+.badge .dur { font-weight: 700; color: var(--text); }
+
+/* Status backgrounds with higher opacity */
+.cell.status-worked { 
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-2) 22%, transparent), transparent 70%);
+}
+.cell.status-started { 
+  background: linear-gradient(180deg, color-mix(in srgb, var(--today) 22%, transparent), transparent 70%);
+}
+.cell.status-free { 
+  background: linear-gradient(180deg, color-mix(in srgb, var(--free) 22%, transparent), transparent 70%);
+}
+.cell.status-today { 
+  background: linear-gradient(180deg, color-mix(in srgb, var(--today) 22%, transparent), transparent 70%);
+}
+.cell.status-missed {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--danger) 20%, transparent), transparent 70%);
+}
+
+.hint { color: var(--muted); }
+
+.table { width: 100%; border-collapse: collapse; margin: 10px 0 24px; }
+.table th, .table td { border-bottom: 1px solid var(--border); padding: 10px; text-align: left; }
+.table tr:hover td { background: rgba(255,255,255,.02); }
+.table-wrap { width: 100%; overflow-x: auto; }
+
+.report-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+.report-controls select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  background: #1b2027; border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 34px 10px 12px; color: var(--text); font-weight: 600;
+  background-image: linear-gradient(45deg, transparent 50%, #9aa3af 50%), 
+                    linear-gradient(135deg, #9aa3af 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 3px), calc(100% - 10px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px; background-repeat: no-repeat;
+}
+.report-controls select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+
+dialog {
+  border: 1px solid var(--border); border-radius: 14px; padding: 0; color: var(--text);
+  background: var(--panel); width: min(420px, 92vw);
+}
+dialog::backdrop { background: rgba(0,0,0,.5); }
+#editForm { padding: 16px; }
+#editForm h3 { margin: 0 0 8px 0; }
+.form-row { display: flex; gap: 12px; margin: 12px 0; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+input[type="time"] { padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: #0f1318; color: var(--text); }
+.dialog-actions { display: flex; justify-content: space-between; gap: 8px; }
+
+/* Toggle "Giorno libero" button */
+.toggle-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #20303a; border: 1px solid var(--border); color: #a5e3ff;
+  padding: 8px 12px; border-radius: 10px; cursor: pointer; margin: 2px 0 8px;
+}
+.toggle-btn.active {
+  background: #0f2731; border-color: #38bdf8; color: #e6f7ff; box-shadow: 0 0 0 2px rgba(56,189,248,.25) inset;
+}
+
+.app-footer {
+  border-top: 1px solid var(--border); color: var(--muted);
+  padding: 12px 20px; text-align: center;
+}
+.tiny { color: var(--muted); font-size: 12px; }
+
+.file {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px;
+  border: 1px dashed var(--border); background: #0f141a; cursor: pointer;
+}
+.file input { display: none; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .app-header h1 { font-size: 18px; }
+  .toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .month-nav { justify-content: space-between; }
+  .grid .cell { min-height: 90px; }
+}
+
+@media (max-width: 640px) {
+  main { width: 100vw; padding: 0 8px; }
+  .app-header { flex-wrap: wrap; gap: 10px; }
+  .tabs { width: 100%; }
+  .tab-button { flex: 1; padding: 10px 8px; }
+  .weekdays > div { padding: 8px 4px; font-size: 12px; }
+  .grid .cell { min-height: 74px; padding: 6px; }
+  .cell .date { font-size: 11px; }
+  .cell .content { margin-top: 18px; gap: 4px; }
+  .cell .badge { font-size: 12px; }
+  input[type="time"] { padding: 10px; }
+  #monthLabel { min-width: auto; font-size: 16px; }
+  .legend { font-size: 12px; gap: 10px; }
+  .table { min-width: 560px; }
+}
+
+
+/* Labels inside times: hide on small screens */
+.time .lbl { opacity: .8; }
+@media (max-width: 640px) {
+  .time .lbl { display: none; }
+}
+
+/* Floating action button (timbra) */
+#fabCheckin {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 18px;
+  width: 64px; height: 64px;
+  border-radius: 999px;
+  background: #2e3440;
+  border: 1px solid var(--border);
+  display: grid; place-items: center;
+  color: var(--text);
+  box-shadow: 0 10px 24px rgba(0,0,0,.35), 0 2px 6px rgba(0,0,0,.2);
+  z-index: 50;
+}
+#fabCheckin:active { transform: translateX(-50%) scale(.98); }
+#fabCheckin:hover { filter: brightness(1.04); }
+
+/* Round button refinement */
+#roundBtn { margin-left: 8px; }
+
+.badge .dur { white-space: nowrap; }
+
+</style>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Registro Ore Lavorate</h1>
+    <nav class="tabs">
+      <button class="tab-button active" data-tab="cal">Calendario</button>
+      <button class="tab-button" data-tab="rep">Report</button>
+      <button class="tab-button" data-tab="imp">Import/Export</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-cal" class="tab active">
+      <div class="toolbar">
+        <div class="month-nav">
+          <button id="prevMonth" aria-label="Mese precedente" class="secondary">◀</button>
+          <div id="monthLabel"></div>
+          <button id="nextMonth" aria-label="Mese successivo" class="secondary">▶</button>
+          <button id="todayBtn" class="secondary">Oggi</button>
+        </div>
+        <div class="legend">
+          <span class="dot worked"></span> compilato
+          <span class="dot today"></span> oggi
+        </div>
+      </div>
+
+      <div class="calendar">
+        <div class="weekdays">
+          <div>Lu</div><div>Ma</div><div>Me</div><div>Gi</div><div>Ve</div><div>Sa</div><div>Do</div>
+        </div>
+        <div id="grid" class="grid"></div>
+      </div>
+      <p class="hint">Clicca su un giorno per inserire <em>ingresso</em> e <em>uscita</em>. I dati sono salvati nel tuo browser (localStorage).</p>
+    </section>
+
+    <section id="tab-rep" class="tab">
+      <div class="report-controls">
+        <label>Mese:
+          <select id="repMonth"></select>
+        </label>
+        <label>Anno:
+          <select id="repYear"></select>
+        </label>
+        <button id="recalc" class="secondary">Ricalcola</button>
+        <button id="exportCsv" class="secondary">Esporta CSV</button>
+        <button id="printRep" class="secondary">Stampa</button>
+      </div>
+
+      <div class="report-summary">
+        <h2 id="repTitle">Report</h2>
+        <p><strong>Totale mese selezionato:</strong> <span id="repTotal">0h 00m</span></p>
+      </div>
+
+      <h3>Dettaglio giornaliero</h3>
+      <div class="table-wrap">
+        <table class="table" id="repTable">
+          <thead>
+            <tr><th>Data</th><th>Ingresso</th><th>Uscita</th><th>Ore</th><th>Note</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h3>Riepilogo per mese</h3>
+      <div class="table-wrap">
+        <table class="table" id="repMonthly">
+          <thead>
+            <tr><th>Mese</th><th>Ore totali</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="tab-imp" class="tab">
+      <h2>Import / Export</h2>
+      <div class="import-export">
+        <button id="exportJson" class="secondary">Scarica JSON</button>
+        <button id="exportXlsx" class="secondary">Esporta Excel (.xlsx)</button>
+        <label class="file">
+          Importa JSON
+          <input type="file" id="importJson" accept="application/json" />
+        </label>
+        <label class="file">Importa Excel (.xlsx)
+          <input type="file" id="importXlsx" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        </label>
+        <button id="clearAll" class="danger">Cancella tutti i dati</button>
+      </div>
+      <p class="hint">Puoi esportare i tuoi dati in JSON e reimportarli in futuro (anche su un altro browser).</p>
+    </section>
+  </main>
+
+  <dialog id="editDialog">
+    <form method="dialog" id="editForm">
+      <h3 id="dialogDate">Modifica giornata</h3>
+      <div class="form-row">
+        <label>Ingresso
+          <input type="time" id="timeIn" />
+        </label>
+        <label>Uscita
+          <input type="time" id="timeOut" />
+        </label>
+      </div>
+      <button id="freeDayBtn" type="button" class="toggle-btn">🌤 Segna giorno libero</button>
+      <button id="roundBtn" type="button" class="secondary">↻ Arrotonda alla mezz'ora</button>
+      <p class="tiny">Se l'uscita è inferiore all'ingresso verrà considerato turno a cavallo della mezzanotte.</p>
+      <div class="dialog-actions">
+        <button id="cancelBtn" type="button" class="secondary">Annulla</button>
+        <button id="deleteDay" class="danger" type="button">Elimina</button>
+        <button id="saveDay">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer class="app-footer">
+    <span>© <span id="year"></span> Registro Ore Lavorate — Dati in locale</span>
+  </footer>
+
+  
+
+  <button id="fabCheckin" aria-label="Timbra">
+    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+      <path d="M12 2a7 7 0 0 0-7 7v1a1 1 0 1 0 2 0V9a5 5 0 0 1 10 0v1a1 1 0 1 0 2 0V9a7 7 0 0 0-7-7z" fill="currentColor" opacity=".9"/>
+      <path d="M7 14c0-1.7 1.3-3 3-3h4c1.7 0 3 1.3 3 3 0 3-1.8 6-5 6s-5-3-5-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M9 14c0 2 1 4 3 4s3-2 3-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M8.5 11.5c0-1.1.9-2 2-2h3c1.1 0 2 .9 2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+
+  <script>
+/* Work Hours Calendar v4 — Vanilla JS
+   Features: partial check-in, free day toggle, mobile layout, styled selects, today halo, past-missed red
+*/
+(() => {
+  const STORAGE_KEY = 'workTimeData-v1';
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  let state = {
+    viewYear: new Date().getFullYear(),
+    viewMonth: new Date().getMonth(), // 0..11
+    data: loadData(), // { 'YYYY-MM-DD': { in:'HH:MM', out:'HH:MM', free: true? } }
+    editDate: null,
+  };
+
+  // ---------- Utils ----------
+  function pad(n){ return n.toString().padStart(2,'0'); }
+  function ymd(d){ return [d.getFullYear(), pad(d.getMonth()+1), pad(d.getDate())].join('-'); }
+  function parseHM(hm){
+    if(!hm || !/^\d{2}:\d{2}$/.test(hm)) return null;
+    const [h,m] = hm.split(':').map(Number);
+    if(h>23 || m>59) return null;
+    return h*60 + m;
+  }
+  function minsToHM(mins){
+    const h = Math.floor(mins/60);
+    const m = mins % 60;
+    return `${h}h ${pad(m)}m`;
+  }
+  function humanMonth(year, monthIdx){
+    const fmt = new Intl.DateTimeFormat('it-IT',{month:'long', year:'numeric'});
+    return fmt.format(new Date(year, monthIdx, 1)).replace(/^./, c => c.toUpperCase());
+  }
+  function loadData(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e){ console.warn('Storage read failed', e); return {}; }
+  }
+  function saveData(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  }
+  function dayDuration(ymdStr){
+    const rec = state.data[ymdStr];
+    if(!rec || !rec.in || !rec.out) return 0;
+    const mi = parseHM(rec.in);
+    const mo = parseHM(rec.out);
+    if(mi===null || mo===null) return 0;
+    let dur = mo - mi;
+    if(dur < 0) dur += 24*60;
+    return dur;
+  }
+
+  // ---------- Calendar rendering ----------
+  const grid = $('#grid');
+  const monthLabel = $('#monthLabel');
+
+  function renderCalendar(){
+    grid.innerHTML = '';
+    monthLabel.textContent = humanMonth(state.viewYear, state.viewMonth);
+
+    const first = new Date(state.viewYear, state.viewMonth, 1);
+    const firstWeekday = (first.getDay()+6)%7; // 0=Mon..6=Sun
+    const daysInMonth = new Date(state.viewYear, state.viewMonth+1, 0).getDate();
+    const totalCells = 42; // 6 weeks
+
+    const nowLocal = new Date();
+    const todayStr = ymd(nowLocal);
+    const startOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
+
+    for(let idx=0; idx<totalCells; idx++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+
+      const dayNum = idx - firstWeekday + 1;
+      const inMonth = dayNum>=1 && dayNum<=daysInMonth;
+
+      if(inMonth){
+        const date = new Date(state.viewYear, state.viewMonth, dayNum);
+        const dateStr = ymd(date);
+        const rec = state.data[dateStr];
+
+        cell.setAttribute('role','button'); cell.tabIndex = 0;
+        cell.addEventListener('keydown', (e) => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openEdit(dateStr); } });
+        cell.addEventListener('click', () => openEdit(dateStr));
+
+        const dateEl = document.createElement('div');
+        dateEl.className='date';
+        dateEl.textContent = dayNum;
+        cell.appendChild(dateEl);
+
+        const content = document.createElement('div');
+        content.className = 'content';
+
+        if(rec){
+          if(rec.free){
+            const info = document.createElement('div');
+            info.className = 'badge';
+            info.innerHTML = `<div class='row-times'><span class='time'>🌤 Giorno libero</span></div>`;
+            cell.classList.add('status-free');
+            content.appendChild(info);
+          } else if(rec.in && rec.out){
+            const info = document.createElement('div');
+            const dur = dayDuration(dateStr);
+            info.className = 'badge';
+            info.innerHTML = `<div class='row-times'><span class='time'>⏱ <span class='lbl'>Inizio </span><strong>${rec.in}</strong></span><span class='time'><span class='lbl'>Uscita </span><strong>${rec.out}</strong></span></div><div class='row dur'>${minsToHM(dur)}</div>`;
+            cell.classList.add('status-worked');
+            content.appendChild(info);
+          } else if(rec.in || rec.out){
+            const info = document.createElement('div');
+            info.className = 'badge';
+            const inTxt = rec.in ? `<strong>${rec.in}</strong>` : '<em>—</em>';
+            const outTxt = rec.out ? `<strong>${rec.out}</strong>` : '<em>—</em>';
+            info.innerHTML = `<div class='row-times'><span class='time'>🟢 <span class='lbl'>Ingresso </span>${inTxt}</span><span class='time'><span class='lbl'>Uscita </span>${outTxt}</span></div>`;
+            cell.classList.add('status-started');
+            content.appendChild(info);
+          }
+        }
+
+        // Today halo
+        // Today must always be amber
+        if(dateStr === todayStr){
+          cell.classList.remove('status-worked','status-started','status-free','status-missed');
+          cell.classList.add('status-today');
+        }
+        // Past days not worked (and not free) halo red
+        if(dateStr !== todayStr && date < startOfToday){
+          const isWorked = rec && (rec.free || rec.in || rec.out);
+          if(!isWorked) cell.classList.add('status-missed');
+        }
+
+        cell.appendChild(content);
+      } else {
+        cell.style.background = 'rgba(255,255,255,.01)';
+        cell.style.cursor = 'default';
+      }
+
+      grid.appendChild(cell);
+    }
+  }
+
+  // ---------- Dialog (edit day) ----------
+  const dialog = $('#editDialog');
+  const timeIn = $('#timeIn');
+  const timeOut = $('#timeOut');
+  const dialogDate = $('#dialogDate');
+  const saveDay = $('#saveDay');
+  const deleteDay = $('#deleteDay');
+  const cancelBtn = $('#cancelBtn');
+  const freeDayBtn = $('#freeDayBtn');
+
+  function openEdit(dateStr){
+    state.editDate = dateStr;
+    const rec = state.data[dateStr];
+    timeIn.value = rec?.in || '';
+    timeOut.value = rec?.out || '';
+    const isFree = !!rec?.free;
+    if(isFree) freeDayBtn.classList.add('active'); else freeDayBtn.classList.remove('active');
+    timeIn.disabled = isFree; timeOut.disabled = isFree;
+
+    dialogDate.textContent = new Date(dateStr).toLocaleDateString('it-IT', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+    // Show delete only if record exists
+    deleteDay.style.display = rec ? 'inline-block' : 'none';
+    // Prevent iOS time picker popping up by avoiding autofocus on time inputs
+    const prevDisabledIn = timeIn.disabled; const prevDisabledOut = timeOut.disabled;
+    timeIn.disabled = true; timeOut.disabled = true;
+    dialog.showModal();
+    setTimeout(() => { timeIn.disabled = isFree || prevDisabledIn; timeOut.disabled = isFree || prevDisabledOut; cancelBtn.focus({preventScroll:true}); }, 60);
+  }
+
+  // Toggle free day
+  if(freeDayBtn){ freeDayBtn.addEventListener('click', () => {
+    const active = freeDayBtn.classList.toggle('active');
+    if(active){ timeIn.value=''; timeOut.value=''; }
+    timeIn.disabled = active; timeOut.disabled = active;
+  }); }
+
+  
+  // Round times to nearest 30 minutes
+  const roundBtn = $('#roundBtn');
+  function hmToM(hm){ if(!/^\d{2}:\d{2}$/.test(hm)) return null; const [h,m]=hm.split(':').map(Number); return h*60+m; }
+  function mToHM(m){ const h=Math.floor(m/60); const mm=m%60; return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; }
+  function round30(m){ return Math.round(m/30)*30; }
+  if(roundBtn){ roundBtn.addEventListener('click', () => {
+    const ti = timeIn.value; const to = timeOut.value;
+    if(/^\d{2}:\d{2}$/.test(ti)){ let m=round30(hmToM(ti)); if(m>=24*60) m=23*60+59; timeIn.value = mToHM(m); }
+    if(/^\d{2}:\d{2}$/.test(to)){ let m=round30(hmToM(to)); if(m>=24*60) m=23*60+59; timeOut.value = mToHM(m); }
+  }); }
+
+  // Save (allow only Ingresso, or Free day)
+  saveDay.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const ti = timeIn.value;
+    const to = timeOut.value;
+    const isFree = freeDayBtn.classList.contains('active');
+
+    if(isFree){
+      state.data[state.editDate] = { free: true };
+    } else {
+      const inOk = /^\d{2}:\d{2}$/.test(ti);
+      const outOk = /^\d{2}:\d{2}$/.test(to);
+      if(!inOk && !outOk){
+        alert('Inserisci almeno l\'orario di ingresso (HH:MM), oppure segna Giorno libero.');
+        return;
+      }
+      const rec = {};
+      if(inOk) rec.in = ti;
+      if(outOk) rec.out = to;
+      state.data[state.editDate] = rec;
+    }
+
+    saveData();
+    dialog.close();
+    renderCalendar();
+    refreshReportSelectors();
+    renderReport();
+  });
+
+  deleteDay.addEventListener('click', () => {
+    if(state.editDate && state.data[state.editDate]){
+      delete state.data[state.editDate];
+      saveData();
+      dialog.close();
+      renderCalendar();
+      refreshReportSelectors();
+      renderReport();
+    } else {
+      dialog.close();
+    }
+  });
+
+  cancelBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    dialog.close();
+  });
+
+
+  // Floating action button: open today and stamp current time
+  const fab = $('#fabCheckin');
+  if(fab){ fab.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation();
+    const now = new Date();
+    const today = ymd(now);
+    openEdit(today);
+    // ensure 'free day' off
+    if(freeDayBtn.classList.contains('active')){
+      freeDayBtn.classList.remove('active');
+      timeIn.disabled = false; timeOut.disabled = false;
+    }
+    const cur = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    if(!timeIn.value){ timeIn.value = cur; }
+    else { timeOut.value = cur; }
+  });
+  }
+// ---------- Month nav ----------
+  $('#prevMonth').addEventListener('click', () => {
+    if(state.viewMonth===0){ state.viewMonth=11; state.viewYear--; } else { state.viewMonth--; }
+    renderCalendar();
+  });
+  $('#nextMonth').addEventListener('click', () => {
+    if(state.viewMonth===11){ state.viewMonth=0; state.viewYear++; } else { state.viewMonth++; }
+    renderCalendar();
+  });
+  $('#todayBtn').addEventListener('click', () => {
+    const now = new Date();
+    state.viewYear = now.getFullYear();
+    state.viewMonth = now.getMonth();
+    renderCalendar();
+  });
+
+  // ---------- Tabs ----------
+  $$('.tab-button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.tab-button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      $$('.tab').forEach(sec => sec.classList.remove('active'));
+      $('#tab-' + tab).classList.add('active');
+      if(tab==='rep'){ renderReport(); }
+    });
+  });
+
+  // ---------- Report ----------
+  const repMonth = $('#repMonth');
+  const repYear = $('#repYear');
+  const repTitle = $('#repTitle');
+  const repTotal = $('#repTotal');
+  const repTableBody = $('#repTable tbody');
+  const repMonthlyBody = $('#repMonthly tbody');
+
+  function refreshReportSelectors(){
+    const dates = Object.keys(state.data).sort();
+    let minYear = new Date().getFullYear(), maxYear = minYear;
+    if(dates.length){
+      minYear = new Date(dates[0]).getFullYear();
+      maxYear = new Date(dates[dates.length-1]).getFullYear();
+    }
+    repYear.innerHTML = '';
+    for(let y = minYear-1; y <= maxYear+1; y++){
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      if(y === state.viewYear) opt.selected = true;
+      repYear.appendChild(opt);
+    }
+    repMonth.innerHTML = '';
+    const monthNames = [...Array(12)].map((_,i) => new Intl.DateTimeFormat('it-IT',{month:'long'}).format(new Date(2024,i,1)));
+    for(let i=0;i<12;i++){
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = monthNames[i].replace(/^./, c=>c.toUpperCase());
+      if(i === state.viewMonth) opt.selected = true;
+      repMonth.appendChild(opt);
+    }
+  }
+
+  function renderReport(){
+    const year = parseInt(repYear.value,10);
+    const month = parseInt(repMonth.value,10);
+    repTitle.textContent = `Report — ${humanMonth(year, month)}`;
+
+    // Daily detail
+    repTableBody.innerHTML = '';
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    let totalMins = 0;
+    for(let d=1; d<=daysInMonth; d++){
+      const dateStr = `${year}-${pad(month+1)}-${pad(d)}`;
+      const rec = state.data[dateStr];
+      if(rec){
+        const mins = dayDuration(dateStr);
+        totalMins += mins;
+        const tr = document.createElement('tr');
+        const note = rec.free ? 'Giorno libero' : (rec.in && !rec.out ? 'Solo ingresso' : '');
+        tr.innerHTML = `<td>${new Date(dateStr).toLocaleDateString('it-IT')}</td>
+                        <td>${rec.in || ''}</td>
+                        <td>${rec.out || ''}</td>
+                        <td>${mins ? minsToHM(mins) : ''}</td>
+                        <td>${note}</td>`;
+        repTableBody.appendChild(tr);
+      }
+    }
+    repTotal.textContent = minsToHM(totalMins);
+
+    // Monthly rollup
+    const bucket = new Map(); // 'YYYY-MM' -> total minutes
+    Object.keys(state.data).forEach(dateStr => {
+      const ym = dateStr.slice(0,7);
+      const mins = dayDuration(dateStr);
+      bucket.set(ym, (bucket.get(ym)||0) + mins);
+    });
+    const rows = [...bucket.entries()].sort();
+    repMonthlyBody.innerHTML = '';
+    rows.forEach(([ym, mins]) => {
+      const [y,m] = ym.split('-').map(Number);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${humanMonth(y, m-1)}</td><td>${minsToHM(mins)}</td>`;
+      repMonthlyBody.appendChild(tr);
+    });
+  }
+
+  $('#recalc').addEventListener('click', renderReport);
+
+  $('#exportCsv').addEventListener('click', () => {
+    const year = parseInt(repYear.value,10);
+    const month = parseInt(repMonth.value,10);
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    let lines = ['Data,Ingresso,Uscita,Ore(minuti),Note'];
+    for(let d=1; d<=daysInMonth; d++){
+      const dateStr = `${year}-${pad(month+1)}-${pad(d)}`;
+      const rec = state.data[dateStr];
+      if(rec){
+        const mins = dayDuration(dateStr);
+        const note = rec.free ? 'Giorno libero' : (rec.in && !rec.out ? 'Solo ingresso' : '');
+        lines.push([
+          new Date(dateStr).toLocaleDateString('it-IT'),
+          rec.in || '',
+          rec.out || '',
+          mins,
+          note
+        ].join(','));
+      }
+    }
+    const csv = lines.join('\n');
+    downloadFile(`report_${year}-${pad(month+1)}.csv`, csv, 'text/csv');
+  });
+
+  $('#printRep').addEventListener('click', () => window.print());
+
+  
+  // ---------- Export / Import Excel (.xlsx) ----------
+  function monthKey(dateStr){ return dateStr.slice(0,7); } // 'YYYY-MM'
+  function italianMonthName(year, mIdx){
+    const s = new Intl.DateTimeFormat('it-IT',{month:'long', year:'numeric'}).format(new Date(year,mIdx,1));
+    return s.replace(/^./, c=>c.toUpperCase());
+  }
+
+  function groupDataByMonth(){
+    const buckets = new Map();
+    Object.keys(state.data).sort().forEach(d => {
+      const ym = monthKey(d);
+      if(!buckets.has(ym)) buckets.set(ym, []);
+      buckets.get(ym).push(d);
+    });
+    return buckets;
+  }
+
+  function exportExcel(){
+    if(typeof XLSX === 'undefined'){ alert('Libreria Excel non disponibile. Controlla la connessione internet.'); return; }
+    const wb = XLSX.utils.book_new();
+    const buckets = groupDataByMonth();
+    if(buckets.size === 0){ alert('Nessun dato da esportare.'); return; }
+
+    for(const [ym, dates] of buckets.entries()){
+      const [y, m] = ym.split('-').map(Number);
+      const rows = [];
+      rows.push(['Data', 'Ingresso', 'Uscita', 'Ore (minuti)', 'Stato']);
+      let totalMin = 0;
+      for(const d of dates){
+        const rec = state.data[d];
+        if(!rec) continue;
+        const mins = dayDuration(d);
+        if(rec.in && rec.out) totalMin += mins;
+        const stato = rec.free ? 'Giorno libero' : (rec.in && rec.out ? 'Lavorato' : 'Solo ingresso/uscita');
+        rows.push([
+          new Date(d), rec.in || '', rec.out || '', mins || 0, stato
+        ]);
+      }
+      rows.push([]);
+      rows.push(['Totale ore', '', '', totalMin, '']);
+      const ws = XLSX.utils.aoa_to_sheet(rows, { cellDates: true });
+      // Optional: set column widths
+      const colw = [{wch:12},{wch:10},{wch:10},{wch:14},{wch:18}];
+      ws['!cols'] = colw;
+      // Format first column as date dd/mm/yyyy
+      for(const addr in ws){
+        if(!Object.prototype.hasOwnProperty.call(ws, addr)) continue;
+        if(/^[A]\d+$/.test(addr) && addr !== 'A1'){
+          const cell = ws[addr];
+          if(cell && cell.t === 'd'){ cell.z = 'dd/mm/yyyy'; }
+        }
+      }
+      const sheetName = italianMonthName(y, m-1);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0,31));
+    }
+    const fname = 'RegistroOre.xlsx';
+    XLSX.writeFile(wb, fname, {bookType:'xlsx'});
+  }
+
+  function importExcel(file){
+    if(typeof XLSX === 'undefined'){ alert('Libreria Excel non disponibile.'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array'});
+        const newData = {...state.data};
+        const headerMap = { 'data':'Data', 'ingresso':'Ingresso', 'uscita':'Uscita', 'ore':'Ore (minuti)', 'stato':'Stato' };
+
+        function excelSerialToDate(n){
+          const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+          // normalize to local midnight date only
+          return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        }
+
+        for(const name of wb.SheetNames){
+          const ws = wb.Sheets[name];
+          const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true});
+          if(!aoa.length) continue;
+          // Header row
+          const hdr = aoa[0].map(v => String(v||'').trim().toLowerCase());
+          const idx = {
+            data: hdr.indexOf(headerMap.data.toLowerCase()),
+            ingresso: hdr.indexOf(headerMap.ingresso.toLowerCase()),
+            uscita: hdr.indexOf(headerMap.uscita.toLowerCase()),
+            ore: hdr.indexOf(headerMap.ore.toLowerCase()),
+            stato: hdr.indexOf(headerMap.stato.toLowerCase())
+          };
+          if(idx.data < 0){ continue; } // invalid sheet
+
+          for(let r=1; r<aoa.length; r++){
+            const row = aoa[r];
+            if(!row || row.length===0) continue;
+            const rawDate = row[idx.data];
+            if(rawDate === undefined || rawDate === null || rawDate === '') continue;
+            let d;
+            if(typeof rawDate === 'number'){ d = excelSerialToDate(rawDate); }
+            else { const parsed = new Date(rawDate); if(isNaN(parsed)) continue; d = parsed; }
+            const dateStr = [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+
+            const rec = {};
+            const ti = idx.ingresso>=0 ? row[idx.ingresso] : '';
+            const to = idx.uscita>=0 ? row[idx.uscita] : '';
+            const st = idx.stato>=0 ? String(row[idx.stato]||'').toLowerCase() : '';
+
+            const reTime = /^\d{2}:\d{2}$/;
+            if(reTime.test(String(ti))) rec.in = String(ti);
+            if(reTime.test(String(to))) rec.out = String(to);
+            if(st.includes('libero')) rec.free = true;
+
+            if(Object.keys(rec).length){
+              newData[dateStr] = rec;
+            }
+          }
+        }
+        state.data = newData;
+        saveData();
+        renderCalendar();
+        refreshReportSelectors();
+        renderReport();
+        alert('Import Excel completato ✅');
+      } catch(err){
+        alert('Errore import Excel: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Buttons & inputs
+  const exportXlsxBtn = $('#exportXlsx');
+  if(exportXlsxBtn) exportXlsxBtn.addEventListener('click', exportExcel);
+
+  const importXlsxInput = $('#importXlsx');
+  if(importXlsxInput) importXlsxInput.addEventListener('change', (ev) => {
+    const f = ev.target.files?.[0];
+    if(!f) return;
+    importExcel(f);
+    ev.target.value = '';
+  });
+
+
+  // ---------- Import/Export JSON ----------
+  $('#exportJson').addEventListener('click', () => {
+    const blob = JSON.stringify(state.data, null, 2);
+    downloadFile('ore-lavorate.json', blob, 'application/json');
+  });
+
+  $('#importJson').addEventListener('change', async (ev) => {
+    const file = ev.target.files?.[0];
+    if(!file) return;
+    try {
+      const text = await file.text();
+      const obj = JSON.parse(text);
+      if(typeof obj !== 'object' || Array.isArray(obj)) throw new Error('Formato non valido');
+      state.data = obj;
+      saveData();
+      renderCalendar();
+      refreshReportSelectors();
+      renderReport();
+      alert('Import completato ✅');
+    } catch(e){
+      alert('Errore durante import: ' + e.message);
+    } finally {
+      ev.target.value = '';
+    }
+  });
+
+  $('#clearAll').addEventListener('click', () => {
+    if(confirm('Sei sicuro di voler cancellare tutti i dati?')){
+      state.data = {};
+      saveData();
+      renderCalendar();
+      refreshReportSelectors();
+      renderReport();
+    }
+  });
+
+  function downloadFile(filename, content, mime){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([content], {type: mime}));
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }
+
+  // ---------- Init ----------
+  $('#year').textContent = new Date().getFullYear();
+  refreshReportSelectors();
+  renderCalendar();
+  renderReport();
+
+  repMonth.addEventListener('change', renderReport);
+  repYear.addEventListener('change', renderReport);
+})();
+</script></body>
+</html>
